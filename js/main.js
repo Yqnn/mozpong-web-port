@@ -375,8 +375,9 @@ function updateMenuBar() {
     pause.textContent = paused ? 'Resume' : 'Pause';
   }
   if (mobilePause) {
-    mobilePause.disabled = !canPause;
-    mobilePause.textContent = paused ? 'Resume' : 'Pause';
+    const inGame = mode === 'game' && !gameOverHandled;
+    mobilePause.disabled = false;
+    mobilePause.textContent = inGame ? (paused ? 'Resume' : 'Pause') : 'New Game';
   }
   const sound = document.getElementById('menu-sound');
   const music = document.getElementById('menu-music');
@@ -555,7 +556,10 @@ document.getElementById('menu-stage').onclick = () => { selectStage(); closeMobi
 
 const mobilePause = document.getElementById('mobilePause');
 if (mobilePause) {
-  mobilePause.onclick = () => { if (mode === 'game') togglePause(); };
+  mobilePause.onclick = () => {
+    if (mode === 'game' && !gameOverHandled) togglePause();
+    else newGame(1);
+  };
 }
 const mobileMenu = document.getElementById('mobileMenu');
 if (mobileMenu) {

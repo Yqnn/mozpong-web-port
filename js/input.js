@@ -11,6 +11,7 @@ export class Input {
     this.mouseX = 256;
     this.mouseY = 200;
     this.mouseDown = false;
+    this.touchId = null;
     this.keys = [];
     this.keySet = new Set();
 
@@ -27,7 +28,54 @@ export class Input {
     window.addEventListener('blur', () => {
       this.keySet.clear();
       this.mouseDown = false;
+      this.touchId = null;
     });
+
+    const isUiTarget = (target) => target instanceof Element &&
+      target.closest('.side-panel, button, input, textarea, select, #overlay, #loading');
+
+    const updateFromClient = (clientX, clientY) => {
+      const r = canvas.getBoundingClientRect();
+      this.mouseX = Math.round(((clientX - r.left) / r.width) * 512) - MOUSE_X_CORRECTION;
+      this.mouseY = Math.round(((clientY - r.top) / r.height) * 400);
+      this.clamp();
+    };
+
+    // Touch drags are tracked on the whole window, not just the canvas, so a
+    // finger that slides off the playfield still moves MozMoz.
+    window.addEventListener('touchstart', (e) => {
+      if (this.touchId !== null || isUiTarget(e.target)) return;
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      this.touchId = touch.identifier;
+      // A tap/drag on the playfield fires; a drag from elsewhere on the screen
+      // only steers MozMoz.
+      this.mouseDown = e.target instanceof Element && !!e.target.closest('#screen-wrap');
+      updateFromClient(touch.clientX, touch.clientY);
+      e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      if (this.touchId === null) return;
+      for (const touch of e.changedTouches) {
+        if (touch.identifier !== this.touchId) continue;
+        updateFromClient(touch.clientX, touch.clientY);
+        e.preventDefault();
+        break;
+      }
+    }, { passive: false });
+
+    const endTouch = (e) => {
+      if (this.touchId === null) return;
+      for (const touch of e.changedTouches) {
+        if (touch.identifier !== this.touchId) continue;
+        this.touchId = null;
+        this.mouseDown = false;
+        break;
+      }
+    };
+    window.addEventListener('touchend', endTouch);
+    window.addEventListener('touchcancel', endTouch);
 
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) this.mouseDown = true;
@@ -36,10 +84,7 @@ export class Input {
       if (e.button === 0) this.mouseDown = false;
     });
     canvas.addEventListener('mousemove', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.mouseX = Math.round(((e.clientX - r.left) / r.width) * 512) - MOUSE_X_CORRECTION;
-      this.mouseY = Math.round(((e.clientY - r.top) / r.height) * 400);
-      this.clamp();
+      updateFromClient(e.clientX, e.clientY);
     });
   }
 

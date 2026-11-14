@@ -1,5 +1,9 @@
 /* MozPong - Classic Mac Style layout, adapted from the Tetris Max web port */
 
+:root {
+  --mobile-bezel-height: 180px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -415,11 +419,11 @@ kbd {
 @media (max-width: 768px) {
   .main-container {
     position: fixed;
-    bottom: 300px;
+    bottom: var(--mobile-bezel-height);
     left: 0;
     right: 0;
     top: 0;
-    height: calc(100dvh - 300px);
+    height: calc(100dvh - var(--mobile-bezel-height));
     align-items: center;
     margin-right: 0;
     max-width: 100vw;
@@ -431,7 +435,7 @@ kbd {
   }
 
   #screen-wrap {
-    width: min(100vw, calc((100dvh - 300px) * 1.28));
+    width: min(100vw, calc((100dvh - var(--mobile-bezel-height)) * 1.28));
   }
 
   .controls-help {
@@ -472,7 +476,7 @@ kbd {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 300px;
+    height: var(--mobile-bezel-height);
     border-image:
       url('/ui/border-top.svg') 84% 40% 4% 40% / 42px 40px 2px 40px /
       42px 0 0 0;
@@ -501,6 +505,11 @@ kbd {
     font-weight: bold;
     color: #000000;
     user-select: none;
+  }
+
+  .mobile-btn-text {
+    width: 76px;
+    white-space: nowrap;
   }
 
   .mobile-btn:disabled {
