@@ -2334,16 +2334,19 @@ export function updateSpinner() {
   if (G.spinnerBigPiyo) G.spinnerBigPiyo.state = 0;
   const reward = G.spinnerSlots[G.spinnerIndex]?.anim ?? 0;
   switch (reward) {
+    // The original jump table at 0x1254 maps face 0 (10K) to 0x2710,
+    // face 1 (1K) to 0x3e8 and face 2 (5K) to 0x1388.  The cases had been
+    // rotated, so the 10K slot awarded 1,000 points.
     case 0:
-      G.score += 1000;
+      G.score += 10000;
       SATSoundPlay(G.sounds.getCoins, 8, true);
       break;
     case 1:
-      G.score += 5000;
+      G.score += 1000;
       SATSoundPlay(G.sounds.getCoins, 8, true);
       break;
     case 2:
-      G.score += 10000;
+      G.score += 5000;
       SATSoundPlay(G.sounds.getCoins, 8, true);
       break;
     case 3:
