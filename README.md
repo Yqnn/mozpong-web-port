@@ -29,8 +29,10 @@ More details: see the original MozPong 1.0.5 manual and version history.
 - **P**: pause/resume
 - **Enter**: start a new game / resume
 
-The side panel replaces the original Mac menus. Preferences, unlocked stages
-and high scores are stored in `localStorage`.
+The side panel replaces the original Mac menus. The **Layout** option switches
+between the original 512×400 view and a portrait mobile layout that moves the
+spinner, score and Butasan counters into a top bar. Preferences, unlocked
+stages and high scores are stored in `localStorage`.
 
 The current run is also snapshotted to `localStorage` about once per second and
 whenever the page is hidden. Reopening the page resumes that run in pause mode.

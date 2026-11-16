@@ -1,7 +1,16 @@
 /* MozPong - Classic Mac Style layout, adapted from the Tetris Max web port */
 
+@font-face {
+  font-family: 'Charcoal';
+  src: url('/fonts/charcoal-regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+
 :root {
-  --mobile-bezel-height: 180px;
+  --mobile-bezel-height: 60px;
+  --game-aspect: 1.28;
 }
 
 * {
@@ -17,6 +26,10 @@ html {
   overflow: hidden;
   overscroll-behavior: none;
   height: 100%;
+}
+
+body.mobile-layout {
+  --game-aspect: 0.6438;
 }
 
 body {
@@ -65,8 +78,8 @@ body:has(.side-panel-wrapper.collapsed:not(:hover)) .main-container {
 
 #screen-wrap {
   position: relative;
-  width: min(1024px, calc(100vw - 260px), calc((100dvh - 40px) * 1.28));
-  aspect-ratio: 512 / 400;
+  width: min(1024px, calc(100vw - 260px), calc((100dvh - 40px) * var(--game-aspect)));
+  aspect-ratio: var(--game-aspect);
   background: #000;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
 }
@@ -112,8 +125,8 @@ body:has(.side-panel-wrapper.collapsed:not(:hover)) .main-container {
   padding: 12px 12px 44px;
   display: flex;
   flex-direction: column;
-  min-width: 190px;
-  width: 190px;
+  min-width: 180px;
+  width: 180px;
   font-size: 11px;
   background-color: #ffffff;
   border-left: 1px solid #000000;
@@ -242,6 +255,74 @@ body:has(.side-panel-wrapper.collapsed:not(:hover)) .main-container {
   border-right: 1px solid #777777;
   border-bottom: 1px solid #777777;
   box-shadow: inset 0 0 0 1px #aaaaaa;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-section label {
+  font-size: 11px;
+  font-family: 'Charcoal', 'Chicago', Geneva, Helvetica, Arial, sans-serif;
+}
+
+/* Mac OS 9 style dropdown/select */
+.settings-section .select-wrap {
+  position: relative;
+  display: block;
+}
+
+.settings-section select {
+  padding: 4px 24px 4px 6px;
+  font-size: 12px;
+  background: #dddddd;
+  color: #000000;
+  cursor: pointer;
+  font-family: 'Charcoal', 'Chicago', Geneva, Helvetica, Arial, sans-serif;
+  border-radius: 5px;
+  border: 1px solid #000000;
+  width: 100%;
+  box-shadow:
+    inset 1px 1px 0 #dddddd,
+    inset -1px -1px 0 #777777,
+    inset 2px 2px 0 #ffffff,
+    inset -2px -2px 0 #aaaaaa;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.settings-section .select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 16 16'%3E%3Cpath fill='%23000' d='M8 13l4-4H4l4 4M8 3 4 7h8L8 3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
+  border-radius: 3px;
+  box-shadow:
+    -1px 0 0 0 white,
+    -2px 0 0 0 #dddddd,
+    -3px 0 0 0 #aaaaaa;
+}
+
+.settings-section select:focus {
+  outline: none;
+}
+
+.settings-section select:disabled {
+  background-color: #dddddd;
+  color: #888888;
+  cursor: not-allowed;
+  border: 1px solid #888888;
+  box-shadow: none;
 }
 
 .controls-help {
@@ -435,7 +516,7 @@ kbd {
   }
 
   #screen-wrap {
-    width: min(100vw, calc((100dvh - var(--mobile-bezel-height)) * 1.28));
+    width: min(100vw, calc((100dvh - var(--mobile-bezel-height)) * var(--game-aspect)));
   }
 
   .controls-help {
@@ -530,13 +611,13 @@ kbd {
   }
 
   #mobilePause {
-    left: calc(50% + 40px);
+    left: calc(50% + 43px);
     transform: translateX(-50%);
     bottom: 0;
   }
 
   #mobileMenu {
-    left: calc(50% - 40px);
+    left: calc(50% - 43px);
     transform: translateX(-50%);
     bottom: 0;
   }

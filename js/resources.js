@@ -187,6 +187,10 @@ async function loadImageData(url) {
   return { width: c.width, height: c.height, data: d };
 }
 
+export async function loadPictureUrl(url) {
+  return loadImageData(url);
+}
+
 export class Assets {
   constructor() {
     this.manifest = null;

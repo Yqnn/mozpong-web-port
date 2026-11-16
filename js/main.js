@@ -1,4 +1,4 @@
-import { Assets } from './resources.js';
+import { Assets, loadPictureUrl } from './resources.js';
 import { AudioEngine } from './audio.js';
 import { Input } from './input.js';
 import { SCREEN_W, SCREEN_H, Framebuffer, SAT } from './engine.js';
@@ -28,10 +28,36 @@ let saveAccumulator = 0;
 const STEP = 1 / 30;
 const SAVE_KEY = 'mozpong.save';
 
+// Mobile presentation layout: the 376x400 playfield is scaled to 512x545 and
+// the right-hand HUD is rearranged into a 512x180 top bar.
+const MOBILE_LAYOUT = {
+  topPad: 14,
+  topH: 170,
+  sourceW: 376,
+  sourceH: 400,
+  playX: 0,
+  playY: 184,
+  playH: 400,
+  // HUD source panel is x=378..511. The score/Butasan panel (source y=0..95)
+  // maps to x=198..332; the spinner panel (source y=95..270) maps to x=44..178.
+  hudX: 378,
+  spinnerY: 95,
+  spinnerDx: 44,
+  scoreDx: 198,
+  spinnerDy: -4,
+  scoreDy: 1,
+};
+const MOBILE_W = 376;
+const MOBILE_H = 584; // 14 px top pad + 170 px HUD + 400 px playfield
+let layoutMode = 'desktop';
+let mobileFb = null;
+let mobileBg = null;
+
 const DEFAULT_PREF = {
   version: 60,
   sound: 1,
   music: 1,
+  layout: 'desktop',
   depthAlert: 1,
   ignoreOthers: 0,
   highscores: [50000, 40000, 30000, 20000, 10000],
@@ -46,6 +72,7 @@ function loadPref() {
     const raw = localStorage.getItem('mozpong.pref');
     if (raw) p = { ...p, ...JSON.parse(raw) };
   } catch { /* ignore */ }
+  if (p.layout !== 'mobile' && p.layout !== 'desktop') p.layout = 'desktop';
   G.pref = p;
   G.pref.nextExtra = 100000;
 }
@@ -212,9 +239,108 @@ function drawWelcome() {
   present();
 }
 
+function blitScaledRegion(src, srcW, sx, sy, sw, sh, dst, dstW, dx, dy, dw, dh) {
+  for (let y = 0; y < dh; y++) {
+    const syy = sy + Math.floor(y * sh / dh);
+    const srow = syy * srcW * 4;
+    const drow = (dy + y) * dstW * 4;
+    for (let x = 0; x < dw; x++) {
+      const sxx = sx + Math.floor(x * sw / dw);
+      const si = srow + sxx * 4;
+      const di = drow + (dx + x) * 4;
+      dst[di] = src[si];
+      dst[di + 1] = src[si + 1];
+      dst[di + 2] = src[si + 2];
+      dst[di + 3] = 255;
+    }
+  }
+}
+
+function presentMobile() {
+  if (!mobileFb) {
+    mobileFb = new Framebuffer(MOBILE_W, MOBILE_H);
+  }
+  const dst = mobileFb.rgba;
+  for (let i = 0; i < dst.length; i += 4) {
+    dst[i] = 242;
+    dst[i + 1] = 225;
+    dst[i + 2] = 225;
+    dst[i + 3] = 255;
+  }
+  if (mobileBg && mobileBg.width === MOBILE_W) {
+    // While the manually designed background is still 570 px tall, bottom-align
+    // it so the reserved 14 px top pad stays empty. A 584 px replacement will
+    // fill the whole canvas.
+    const bgY = Math.max(0, MOBILE_H - mobileBg.height);
+    const rows = Math.min(mobileBg.height, MOBILE_H - bgY);
+    const srcStart = 0;
+    const dstStart = bgY * MOBILE_W * 4;
+    dst.set(mobileBg.data.subarray(srcStart, srcStart + rows * MOBILE_W * 4), dstStart);
+  }
+  const src = sat.fb.rgba;
+  const srcW = SCREEN_W;
+  const L = MOBILE_LAYOUT;
+  blitScaledRegion(src, srcW, 0, 0, L.sourceW, L.sourceH,
+    dst, MOBILE_W, L.playX, L.playY, L.sourceW, L.sourceH);
+
+  // The static HUD background is provided by mobile-bg.png.  Draw only the
+  // dynamic HUD sprites (digits, lives, roulette, extra lamps, stage meter).
+  for (let sp = sat.head; sp; sp = sp.next) {
+    if (!sp.hud || !sp.face || sp.h < L.hudX) continue;
+    const isScore = sp.v < L.spinnerY;
+    const dx = (isScore ? L.scoreDx : L.spinnerDx) + (sp.h - L.hudX);
+    const dy = L.topPad + (isScore
+      ? sp.v + L.scoreDy
+      : sp.v - L.spinnerY + L.spinnerDy);
+    mobileFb.blitFace(sp.face, dx, dy);
+  }
+  ctx.putImageData(new ImageData(dst, MOBILE_W, MOBILE_H), 0, 0);
+}
+
 function present() {
+  if (layoutMode === 'mobile') {
+    presentMobile();
+    return;
+  }
   const img = new ImageData(sat.fb.rgba, SCREEN_W, SCREEN_H);
   ctx.putImageData(img, 0, 0);
+}
+
+function redrawForLayout() {
+  if (!assets) return;
+  if (mode === 'title') {
+    drawWelcome();
+  } else if (mode === 'game') {
+    sat.render();
+    present();
+    if (paused && !gameOverHandled) drawPause();
+  }
+}
+
+function applyLayout(redraw = true) {
+  layoutMode = G.pref.layout === 'mobile' ? 'mobile' : 'desktop';
+  document.body.classList.toggle('mobile-layout', layoutMode === 'mobile');
+  const mobile = layoutMode === 'mobile';
+  canvas.width = mobile ? MOBILE_W : SCREEN_W;
+  canvas.height = mobile ? MOBILE_H : SCREEN_H;
+  input.setView(mobile ? {
+    canvasW: MOBILE_W,
+    canvasH: MOBILE_H,
+    sourceW: MOBILE_LAYOUT.sourceW,
+    sourceH: MOBILE_LAYOUT.sourceH,
+    offsetY: MOBILE_LAYOUT.playY,
+    playH: MOBILE_LAYOUT.playH,
+  } : {
+    canvasW: SCREEN_W,
+    canvasH: SCREEN_H,
+    sourceW: SCREEN_W,
+    sourceH: SCREEN_H,
+    offsetY: 0,
+    playH: SCREEN_H,
+  });
+  mobileFb = null;
+  updateMenuBar();
+  if (redraw) redrawForLayout();
 }
 
 function setOverlay(html) {
@@ -381,8 +507,10 @@ function updateMenuBar() {
   }
   const sound = document.getElementById('menu-sound');
   const music = document.getElementById('menu-music');
+  const layoutSelect = document.getElementById('layoutSelect');
   if (sound) sound.textContent = `Sound: ${G.pref.sound ? 'On' : 'Off'}`;
   if (music) music.textContent = `BGM: ${G.pref.music ? 'On' : 'Off'}`;
+  if (layoutSelect) layoutSelect.value = layoutMode;
 
   const panel = document.getElementById('sidePanelWrapper');
   if (panel) {
@@ -478,6 +606,12 @@ function frame(now) {
 
 async function boot() {
   loadPref();
+  if (document.fonts) {
+    try {
+      await document.fonts.load('12px "Charcoal"');
+      await document.fonts.load('bold 12px "Charcoal"');
+    } catch { /* use fallback */ }
+  }
   const loadFill = document.getElementById('load-fill');
   let lastProgress = -1;
   const setProgress = (f) => {
@@ -490,6 +624,11 @@ async function boot() {
   assets = await new Assets().load();
   setProgress(0.05);
   await assets.preloadAll((done, total) => setProgress(0.05 + 0.9 * done / total));
+  try {
+    mobileBg = await loadPictureUrl('assets/mobile-bg.png');
+  } catch (e) {
+    console.warn('Could not load mobile background', e);
+  }
   setProgress(0.96);
   audio = new AudioEngine(assets.manifest);
   audio.init();
@@ -508,10 +647,11 @@ async function boot() {
   G.onSavePref = savePref;
   window.__mozpong = {
     G, sat, assets, audio, input, newGame, toTitle,
-    snapshotGame, restoreGame, saveGame, clearSavedGame, getMode: () => mode,
+    snapshotGame, restoreGame, saveGame, clearSavedGame, applyLayout, getMode: () => mode,
   };
   sat.fb = new Framebuffer(SCREEN_W, SCREEN_H);
   sat.background = assets.getPictureSync(129);
+  applyLayout(false);
   setProgress(1);
   document.getElementById('loading')?.remove();
   document.documentElement.classList.remove('booting');
@@ -552,6 +692,14 @@ document.getElementById('menu-new').onclick = () => newGame(1);
 document.getElementById('menu-pause').onclick = () => { if (mode === 'game') togglePause(); };
 document.getElementById('menu-sound').onclick = toggleSound;
 document.getElementById('menu-music').onclick = toggleMusic;
+const layoutSelect = document.getElementById('layoutSelect');
+if (layoutSelect) {
+  layoutSelect.onchange = () => {
+    G.pref.layout = layoutSelect.value === 'mobile' ? 'mobile' : 'desktop';
+    savePref();
+    applyLayout();
+  };
+}
 document.getElementById('menu-stage').onclick = () => { selectStage(); closeMobileMenu(); };
 
 const mobilePause = document.getElementById('mobilePause');

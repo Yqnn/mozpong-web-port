@@ -12,6 +12,18 @@ export class Input {
     this.mouseY = 200;
     this.mouseDown = false;
     this.touchId = null;
+    this.touchStartX = 0;
+    this.touchStartY = 0;
+    this.touchBaseX = 0;
+    this.touchBaseY = 0;
+    this.view = {
+      canvasW: 512,
+      canvasH: 400,
+      sourceW: 512,
+      sourceH: 400,
+      offsetY: 0,
+      playH: 400,
+    };
     this.keys = [];
     this.keySet = new Set();
 
@@ -36,8 +48,11 @@ export class Input {
 
     const updateFromClient = (clientX, clientY) => {
       const r = canvas.getBoundingClientRect();
-      this.mouseX = Math.round(((clientX - r.left) / r.width) * 512) - MOUSE_X_CORRECTION;
-      this.mouseY = Math.round(((clientY - r.top) / r.height) * 400);
+      const v = this.view;
+      const cx = ((clientX - r.left) / r.width) * v.canvasW;
+      const cy = ((clientY - r.top) / r.height) * v.canvasH;
+      this.mouseX = Math.round(cx * v.sourceW / v.canvasW) - MOUSE_X_CORRECTION;
+      this.mouseY = Math.round((cy - v.offsetY) * v.sourceH / v.playH);
       this.clamp();
     };
 
@@ -48,10 +63,13 @@ export class Input {
       const touch = e.changedTouches[0];
       if (!touch) return;
       this.touchId = touch.identifier;
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+      this.touchBaseX = this.mouseX;
+      this.touchBaseY = this.mouseY;
       // A tap/drag on the playfield fires; a drag from elsewhere on the screen
-      // only steers MozMoz.
+      // only steers MozMoz.  Do not jump the cursor to the finger on touchstart.
       this.mouseDown = e.target instanceof Element && !!e.target.closest('#screen-wrap');
-      updateFromClient(touch.clientX, touch.clientY);
       e.preventDefault();
     }, { passive: false });
 
@@ -59,7 +77,13 @@ export class Input {
       if (this.touchId === null) return;
       for (const touch of e.changedTouches) {
         if (touch.identifier !== this.touchId) continue;
-        updateFromClient(touch.clientX, touch.clientY);
+        const r = canvas.getBoundingClientRect();
+        const v = this.view;
+        const dx = (touch.clientX - this.touchStartX) * v.canvasW / r.width;
+        const dy = (touch.clientY - this.touchStartY) * v.canvasH / r.height;
+        this.mouseX = Math.round(this.touchBaseX + dx * v.sourceW / v.canvasW);
+        this.mouseY = Math.round(this.touchBaseY + dy * v.sourceH / v.playH);
+        this.clamp();
         e.preventDefault();
         break;
       }
@@ -94,6 +118,10 @@ export class Input {
     if (this.mouseX > 511) this.mouseX = 511;
     if (this.mouseY < 0) this.mouseY = 0;
     if (this.mouseY > 399) this.mouseY = 399;
+  }
+
+  setView(view) {
+    this.view = { ...this.view, ...view };
   }
 
   setMouse(x, y) {
