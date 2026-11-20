@@ -11,9 +11,12 @@ export class Input {
     this.mouseX = 256;
     this.mouseY = 200;
     this.mouseDown = false;
+    this.tapPending = false;
     this.touchId = null;
     this.touchStartX = 0;
     this.touchStartY = 0;
+    this.touchLastX = 0;
+    this.touchLastY = 0;
     this.touchBaseX = 0;
     this.touchBaseY = 0;
     this.view = {
@@ -23,6 +26,7 @@ export class Input {
       sourceH: 400,
       offsetY: 0,
       playH: 400,
+      mobile: false,
     };
     this.keys = [];
     this.keySet = new Set();
@@ -40,11 +44,12 @@ export class Input {
     window.addEventListener('blur', () => {
       this.keySet.clear();
       this.mouseDown = false;
+      this.tapPending = false;
       this.touchId = null;
     });
 
     const isUiTarget = (target) => target instanceof Element &&
-      target.closest('.side-panel, button, input, textarea, select, #overlay, #loading');
+      target.closest('.side-panel, .mobile-controls, button, input, textarea, select, #overlay, #loading');
 
     const updateFromClient = (clientX, clientY) => {
       const r = canvas.getBoundingClientRect();
@@ -65,11 +70,17 @@ export class Input {
       this.touchId = touch.identifier;
       this.touchStartX = touch.clientX;
       this.touchStartY = touch.clientY;
+      this.touchLastX = touch.clientX;
+      this.touchLastY = touch.clientY;
       this.touchBaseX = this.mouseX;
       this.touchBaseY = this.mouseY;
       // A tap/drag on the playfield fires; a drag from elsewhere on the screen
-      // only steers MozMoz.  Do not jump the cursor to the finger on touchstart.
-      this.mouseDown = e.target instanceof Element && !!e.target.closest('#screen-wrap');
+      // only steers MozMoz.  In the mobile layout a touch anywhere outside the
+      // UI fires, matching the original's mouse-button behavior.  Do not jump
+      // the cursor to the finger on touchstart.
+      this.mouseDown = this.view.mobile ||
+        (e.target instanceof Element && !!e.target.closest('#screen-wrap'));
+      this.tapPending = true;
       e.preventDefault();
     }, { passive: false });
 
@@ -79,10 +90,13 @@ export class Input {
         if (touch.identifier !== this.touchId) continue;
         const r = canvas.getBoundingClientRect();
         const v = this.view;
-        const dx = (touch.clientX - this.touchStartX) * v.canvasW / r.width;
-        const dy = (touch.clientY - this.touchStartY) * v.canvasH / r.height;
+        const scale = 1.5;
+        const dx = (touch.clientX - this.touchStartX) * v.canvasW / r.width * scale;
+        const dy = (touch.clientY - this.touchStartY) * v.canvasH / r.height * scale;
         this.mouseX = Math.round(this.touchBaseX + dx * v.sourceW / v.canvasW);
         this.mouseY = Math.round(this.touchBaseY + dy * v.sourceH / v.playH);
+        this.touchLastX = touch.clientX;
+        this.touchLastY = touch.clientY;
         this.clamp();
         e.preventDefault();
         break;
@@ -101,8 +115,14 @@ export class Input {
     window.addEventListener('touchend', endTouch);
     window.addEventListener('touchcancel', endTouch);
 
-    canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 0) this.mouseDown = true;
+    window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || isUiTarget(e.target)) return;
+      // In the mobile layout a click/tap anywhere outside the UI fires.  On
+      // desktop only clicks on the playfield should fire.
+      if (this.view.mobile || e.target === canvas) {
+        this.mouseDown = true;
+        this.tapPending = true;
+      }
     });
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.mouseDown = false;
@@ -128,6 +148,35 @@ export class Input {
     this.mouseX = Math.round(x);
     this.mouseY = Math.round(y);
     this.clamp();
+  }
+
+  // Rebase the relative touch drag without moving the current pointer.  Called
+  // when a game starts so a finger that is already down cannot produce an
+  // accumulated jump from the title screen into the first playable frame.
+  resetForGame(x, y) {
+    if (Number.isFinite(x)) this.mouseX = Math.round(x);
+    if (Number.isFinite(y)) this.mouseY = Math.round(y);
+    this.clamp();
+    this.tapPending = false;
+    if (this.touchId !== null) {
+      this.touchStartX = this.touchLastX;
+      this.touchStartY = this.touchLastY;
+    }
+    this.touchBaseX = this.mouseX;
+    this.touchBaseY = this.mouseY;
+  }
+
+  // A short tap can be released between two 30 Hz logic steps.  Latch it for
+  // the next Button() read and clear it at the end of the step if it was not
+  // consumed, so a tap made while the Butasan is unavailable cannot fire later.
+  consumeTap() {
+    if (!this.tapPending) return false;
+    this.tapPending = false;
+    return true;
+  }
+
+  endFrame() {
+    this.tapPending = false;
   }
 
   takeKeys() {

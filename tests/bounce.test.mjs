@@ -79,3 +79,59 @@ if (buta.angle !== expected) {
   process.exit(1);
 }
 console.log('steel-egg vertical bounce angle', buta.angle);
+
+// ---------------------------------------------------------------------------
+// Blue/red eggs use jump-table target 0x3d90 and then the subtype switch at
+// 0x3e4c, which calls recalcButa and adds two more speed units at 0x40cc.
+// White/yellow/green skip that branch.  This checks that the subtype is
+// carried into hitButaEgg instead of collapsing every common egg to 10.
+// ---------------------------------------------------------------------------
+function resetButa() {
+  buta.angle = 0x96;
+  buta.angle2 = 0x96;
+  buta.speed = 100;
+  buta.h = 100;
+  buta.v = 100;
+  buta.x = buta.h << 12;
+  buta.y = buta.v << 12;
+  buta.oldX = buta.x;
+  buta.oldY = buta.y;
+  buta.t96 = 0;
+  buta.t98 = 0;
+  buta.tA0 = 0;
+  buta.t9a = 0;
+  buta.count2 = 0;
+  buta.state = 2;
+  buta.face = {};
+  buta.sub = null;
+}
+
+function makeEgg(subtype, state) {
+  const egg = new Sprite(10, 100, 100);
+  egg.subtype = subtype;
+  egg.state = state;
+  egg.face = {};
+  egg.handle = () => {};
+  egg.h = 100;
+  egg.v = 100;
+  egg.local = { left: 0, top: 0, right: 0x1e, bottom: 0x1e };
+  return egg;
+}
+
+resetButa();
+hitButa(buta, makeEgg(10, 1));
+if (buta.speed !== 102) {
+  console.error(`white-egg contact speed ${buta.speed}, expected 102`);
+  process.exit(1);
+}
+
+for (const subtype of [13, 14]) {
+  resetButa();
+  hitButa(buta, makeEgg(subtype, 2));
+  if (buta.speed !== 104) {
+    console.error(`egg subtype ${subtype} contact speed ${buta.speed}, expected 104`);
+    process.exit(1);
+  }
+}
+
+console.log('egg contact speeds: white 102, blue/red 104');

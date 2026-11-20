@@ -9,7 +9,7 @@
 
 
 :root {
-  --mobile-bezel-height: 60px;
+  --mobile-bezel-height: 70px;
   --game-aspect: 1.28;
 }
 
@@ -505,7 +505,7 @@ kbd {
     right: 0;
     top: 0;
     height: calc(100dvh - var(--mobile-bezel-height));
-    align-items: center;
+    align-items: flex-start;
     margin-right: 0;
     max-width: 100vw;
   }
@@ -513,6 +513,9 @@ kbd {
   .game-wrapper {
     max-width: 100%;
     max-height: 100%;
+    /* Keep the playfield at the top of the free area: the space below the
+       canvas is the touch area, so a drag never covers the game. */
+    margin: 0 auto;
   }
 
   #screen-wrap {

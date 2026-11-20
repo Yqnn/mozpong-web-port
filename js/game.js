@@ -194,7 +194,11 @@ function OffsetRect(r, dx, dy) { return offsetRect(r, dx, dy); }
 function SectRect(a, b, out) { return sectRect(a, b, out); }
 function SATRectsOverlap(a, b) { return rectsOverlap(a, b); }
 
-function Button() { return !!(G.input && G.input.mouseDown); }
+function Button() {
+  if (!G.input) return false;
+  if (G.input.mouseDown) return true;
+  return G.input.consumeTap ? G.input.consumeTap() : false;
+}
 
 function SATGetFacePP(c, m, b) { return assets.getFacePPSync(c, m, b); }
 function SATGetFace(id) { return assets.getFaceCicnSync(id); }
@@ -1584,8 +1588,14 @@ export function hitButa(buta, other) {
       buta.t9a = 0;
       break;
     }
-    case 10: case 11: case 12: case 13: case 14:
-      hitButaEgg(buta, other, 10);
+    case 10: case 11: case 12:
+      hitButaEgg(buta, other, sub);
+      break;
+    case 13: case 14:
+      // The original jump table sends blue/red to 0x3d90, then the subtype
+      // switch at 0x3e4c runs recalcButa and adds two more speed units
+      // (0x40cc..0x40e0).  The subtype must be carried through.
+      hitButaEgg(buta, other, sub);
       break;
     case 15:
       hitButaEgg(buta, other, 15);
@@ -1673,9 +1683,12 @@ export function hitButa(buta, other) {
 }
 
 // 0x3d90/0x3dc0/0x3de4: the shared egg-contact path.  `entry` selects the
-// original jump-table target: 10 = 0x3d90, 15/17 = 0x3de4, 16 = 0x3dc0.
+// original jump-table target: 10..14 = 0x3d90, 15 = 0x3de4, 16 = 0x3dc0,
+// 17 = 0x3de4.  The subtype switch after 0x3e4c distinguishes blue/red
+// (recalcButa) from white/yellow/green/rainbow (no recalc).
 function hitButaEgg(buta, other, entry) {
-  if (entry === 10) {
+  const commonEgg = entry >= 10 && entry <= 14;
+  if (commonEgg) {
     buta.t98 = s16(buta.t98 + 1);
     if (buta.t98 === 1) {
       buta.savedV = s16(other.v);
@@ -1684,7 +1697,7 @@ function hitButaEgg(buta, other, entry) {
     }
     buta.t9a = 0;
   }
-  if (entry === 10 || entry === 16) {
+  if (commonEgg || entry === 16) {
     if (buta.tA0 >= 2) SATSoundPlay(G.sounds.hypButaBound, 3, false);
   }
   if (buta.tA0 >= 2) {

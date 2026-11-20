@@ -4,3 +4,13 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# Original application, extracted resource dumps, analysis, development-only
+# build scripts and reference captures.
+.mozpong/
+mozpong/
+analysis/
+screenshots/
+PORTING_PLAN.md
+PORTING_STATUS.md
+resources/
+tools/

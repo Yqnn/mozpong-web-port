@@ -64,6 +64,7 @@ const DEFAULT_PREF = {
   names: ['MozMoz', 'MozMoz', 'MozMoz', 'MozMoz', 'MozMoz'],
   stages: [5, 5, 5, 5, 5],
   maxStage: 1,
+  lastHighScoreName: 'MozMoz',
 };
 
 function loadPref() {
@@ -73,6 +74,10 @@ function loadPref() {
     if (raw) p = { ...p, ...JSON.parse(raw) };
   } catch { /* ignore */ }
   if (p.layout !== 'mobile' && p.layout !== 'desktop') p.layout = 'desktop';
+  // The original pref record stores the last name entered in the high-score
+  // dialog at +0x53E and pre-fills the next dialog from it.  ResetPref seeds
+  // it from the localized default ("MozMoz" in the English resources).
+  if (typeof p.lastHighScoreName !== 'string') p.lastHighScoreName = 'MozMoz';
   G.pref = p;
   G.pref.nextExtra = 100000;
 }
@@ -330,6 +335,7 @@ function applyLayout(redraw = true) {
     sourceH: MOBILE_LAYOUT.sourceH,
     offsetY: MOBILE_LAYOUT.playY,
     playH: MOBILE_LAYOUT.playH,
+    mobile: true,
   } : {
     canvasW: SCREEN_W,
     canvasH: SCREEN_H,
@@ -337,6 +343,7 @@ function applyLayout(redraw = true) {
     sourceH: SCREEN_H,
     offsetY: 0,
     playH: SCREEN_H,
+    mobile: false,
   });
   mobileFb = null;
   updateMenuBar();
@@ -358,6 +365,7 @@ function highScoreQualifies(score) {
 }
 
 function registerHighScore(name, score, stage) {
+  G.pref.lastHighScoreName = name;
   G.pref.highscores.push(score);
   G.pref.names.push(name);
   G.pref.stages.push(stage);
@@ -376,18 +384,24 @@ function registerHighScore(name, score, stage) {
 function promptHighScore() {
   const score = G.score;
   const stage = G.stage;
+  const lastName = typeof G.pref.lastHighScoreName === 'string'
+    ? G.pref.lastHighScoreName
+    : 'MozMoz';
   setOverlay(`
     <div class="dialog">
       <h2>HIGH SCORE!</h2>
       <p>You reached stage ${stage} with ${score} points.</p>
-      <label>Name <input id="hs-name" maxlength="12" value="MOZPONG" autocomplete="off" data-1p-ignore></label>
+      <label>Name <input id="hs-name" maxlength="20" autocomplete="off" data-1p-ignore></label>
       <button id="hs-ok">OK</button>
     </div>`);
   const nameInput = document.getElementById('hs-name');
+  nameInput.value = lastName;
   nameInput.focus();
   nameInput.select();
   const commit = () => {
-    const name = (nameInput.value || 'MOZPONG').slice(0, 12).toUpperCase();
+    // The original GetDialogItemText/CopyPString path preserves the entered
+    // case and truncates to 20 characters; it never uppercases the name.
+    const name = nameInput.value.slice(0, 20);
     registerHighScore(name, score, stage);
     toTitle();
   };
@@ -448,6 +462,12 @@ function newGame(stage = 1) {
   paused = false;
   gameOverHandled = false;
   startGame(stage);
+  if (layoutMode === 'mobile') {
+    // Start with a zero relative drag at the position where the intro
+    // animation leaves MozMoz (0xa5).  The title-screen pointer could
+    // otherwise pull the character sideways as soon as control begins.
+    input.resetForGame(0xa5, G.moz ? G.moz.baseV : 0x148);
+  }
   updateMenuBar();
   saveGame();
 }
@@ -482,6 +502,7 @@ function drawPause() {
 function togglePause() {
   if (mode !== 'game' || gameOverHandled) return;
   paused = !paused;
+  input.endFrame();
   if (paused) {
     saveGame();
     drawPause();
@@ -492,14 +513,27 @@ function togglePause() {
   updateMenuBar();
 }
 
+// Abort ends the current run immediately, like the Abort action in the
+// Tetris Max port.  It still goes through the normal game-over path, so a
+// qualifying score gets the same high-score prompt as a natural game over.
+function abortGame() {
+  if (mode !== 'game' || gameOverHandled) return;
+  paused = true;
+  input.endFrame();
+  audio.stopMusic(0);
+  finishRun();
+}
+
 function updateMenuBar() {
   const canPause = mode === 'game' && !gameOverHandled;
   const pause = document.getElementById('menu-pause');
+  const abort = document.getElementById('menu-abort');
   const mobilePause = document.getElementById('mobilePause');
   if (pause) {
     pause.disabled = !canPause;
     pause.textContent = paused ? 'Resume' : 'Pause';
   }
+  if (abort) abort.disabled = !canPause;
   if (mobilePause) {
     const inGame = mode === 'game' && !gameOverHandled;
     mobilePause.disabled = false;
@@ -573,6 +607,7 @@ function handleShortcuts() {
 function gameStep() {
   if (mode !== 'game' || paused) return;
   moveItStep();
+  input.endFrame();
   if (G.gameState === 0x14) {
     finishRun();
     return;
@@ -646,7 +681,7 @@ async function boot() {
   audio.effectsEnabled = !!G.pref.sound;
   G.onSavePref = savePref;
   window.__mozpong = {
-    G, sat, assets, audio, input, newGame, toTitle,
+    G, sat, assets, audio, input, newGame, toTitle, abortGame,
     snapshotGame, restoreGame, saveGame, clearSavedGame, applyLayout, getMode: () => mode,
   };
   sat.fb = new Framebuffer(SCREEN_W, SCREEN_H);
@@ -690,6 +725,7 @@ async function boot() {
 // Menu wiring.
 document.getElementById('menu-new').onclick = () => newGame(1);
 document.getElementById('menu-pause').onclick = () => { if (mode === 'game') togglePause(); };
+document.getElementById('menu-abort').onclick = abortGame;
 document.getElementById('menu-sound').onclick = toggleSound;
 document.getElementById('menu-music').onclick = toggleMusic;
 const layoutSelect = document.getElementById('layoutSelect');
