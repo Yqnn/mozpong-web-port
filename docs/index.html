@@ -9,6 +9,13 @@
     <link rel="apple-touch-icon" href="pwa-512x512.png" />
     <title>MozPong</title>
     <meta name="theme-color" content="#000000" />
+    <!-- iOS standalone launch: keep the status bar and the initial paint black.
+         iOS uses the last rendered page as its launch image, so the boot screen
+         must be black as well; a white boot screen becomes the white PWA splash. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="MozPong" />
     <!-- iOS Safari: prevent pinch-zoom (viewport meta is ignored since iOS 10) -->
     <script>
       (function () {
@@ -35,7 +42,7 @@
       }
       html.booting,
       html.booting body {
-        background: #ffffff;
+        background: #000000;
       }
       html.booting #loading {
         position: fixed;
@@ -43,7 +50,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #ffffff;
+        background: #000000;
         z-index: 9999;
       }
       html.booting .load-panel {
@@ -79,8 +86,8 @@
         background: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 4px);
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-Cm3L2w0L.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DnlX1bum.css">
+    <script type="module" crossorigin src="./assets/index-ChZFd8-r.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-HZRQC_yP.css">
   <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
   <body>
     <div class="main-container">
